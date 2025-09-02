@@ -98,6 +98,8 @@ impl ScreenCapture for MacOSScreenCapture {
             .map_err(|e| format!("Failed to set height: {:?}", e))?
             .set_captures_audio(false)
             .map_err(|e| format!("Failed to set audio: {:?}", e))?
+            .set_shows_cursor(false)
+            .map_err(|e| format!("Failed to hide cursor: {:?}", e))?
             .set_pixel_format(PixelFormat::BGRA)
             .map_err(|e| format!("Failed to set pixel format: {:?}", e))?;
 
