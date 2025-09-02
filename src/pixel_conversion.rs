@@ -45,7 +45,7 @@ pub fn convert_sample_buffer_to_rgba(sample_buffer: &CMSampleBuffer) -> Option<V
     let height = unsafe { CVPixelBufferGetHeight(pixel_buffer_ref) } as usize;
     let bytes_per_row = unsafe { CVPixelBufferGetBytesPerRow(pixel_buffer_ref) } as usize;
     let pixel_format = unsafe { CVPixelBufferGetPixelFormatType(pixel_buffer_ref) };
-    println!("{pixel_format}");
+
     if pixel_format != kCVPixelFormatType_32BGRA {
         eprintln!(
             "Unexpected pixel format: {}, expected kCVPixelFormatType_32BGRA",

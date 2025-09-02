@@ -1,5 +1,6 @@
 use regex::Regex;
 use tesseract::Tesseract;
+use image::{ImageBuffer, Luma};
 
 /// Detected sensitive information with location
 #[derive(Debug, Clone)]
@@ -31,6 +32,7 @@ pub enum SensitiveDataType {
 pub struct SensitiveDataDetector {
     tesseract: Tesseract,
     patterns: Vec<(SensitiveDataType, Regex)>,
+    frame_count: u32,
 }
 
 impl SensitiveDataDetector {
@@ -40,7 +42,7 @@ impl SensitiveDataDetector {
 
         let patterns = Self::build_patterns();
 
-        Ok(Self { tesseract, patterns })
+        Ok(Self { tesseract, patterns, frame_count: 0 })
     }
 
     /// Build regex patterns for detecting sensitive data
@@ -93,27 +95,70 @@ impl SensitiveDataDetector {
     /// Detect sensitive data in RGBA image buffer  
     pub fn detect_sensitive_data(&mut self, rgba_buffer: &[u8], width: u32, height: u32) -> Vec<SensitiveMatch> {
         let mut matches = Vec::new();
-
-        // For now, let's implement a simpler approach without OCR
-        // We'll just scan the raw pixel data for text-like patterns
-        // This is a placeholder - real OCR integration would be more complex
         
-        // Simulate text extraction by creating sample text that might be on screen
-        let sample_text = "user@example.com 4532-1234-5678-9012 192.168.1.1 sk_test_abc123def456";
+        self.frame_count += 1;
+        
+        // Only run OCR every 60 frames (roughly once per second) to avoid performance issues
+        if self.frame_count % 60 != 0 {
+            return matches;
+        }
 
-        // Apply pattern matching to sample text
+        println!("🔍 Running OCR analysis on frame {}", self.frame_count);
+
+        // Convert RGBA to grayscale for OCR
+        let grayscale = self.rgba_to_grayscale(rgba_buffer, width, height);
+
+        // Save grayscale image temporarily for tesseract
+        let temp_file = "cloak_share_ocr.png";
+        match self.save_grayscale_as_png(&grayscale, width, height, temp_file) {
+            Ok(_) => println!("📷 Successfully saved frame to {} ({}x{})", temp_file, width, height),
+            Err(e) => {
+                eprintln!("Failed to save image for OCR: {}", e);
+                return matches;
+            }
+        }
+
+        // Extract text using tesseract
+        let text = match Tesseract::new(None, Some("eng")) {
+            Ok(tess) => {
+                match tess.set_image(temp_file) {
+                    Ok(mut tess_with_image) => {
+                        match tess_with_image.get_text() {
+                            Ok(extracted_text) => extracted_text,
+                            Err(e) => {
+                                eprintln!("Failed to get text: {}", e);
+                                return matches;
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("Failed to set image: {}", e);
+                        return matches;
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("Failed to initialize tesseract: {}", e);
+                return matches;
+            }
+        };
+
+        // Clean up temp file
+        let _ = std::fs::remove_file(temp_file);
+
+        // Apply pattern matching to extracted text
         for (data_type, pattern) in &self.patterns {
-            for regex_match in pattern.find_iter(&sample_text) {
+            for regex_match in pattern.find_iter(&text) {
                 let sensitive_text = regex_match.as_str();
                 
                 matches.push(SensitiveMatch {
                     data_type: data_type.clone(),
                     text: sensitive_text.to_string(),
                     confidence: 0.8,
-                    x: regex_match.start() as u32 * 10, // Approximate positioning
-                    y: 100,
-                    width: (regex_match.end() - regex_match.start()) as u32 * 8,
-                    height: 20,
+                    x: 0, // TODO: Get actual coordinates from tesseract bounding boxes
+                    y: 0,
+                    width: 0,
+                    height: 0,
                 });
 
                 println!(
@@ -140,5 +185,16 @@ impl SensitiveDataDetector {
         }
 
         grayscale
+    }
+
+    /// Save grayscale image as PNG for tesseract
+    fn save_grayscale_as_png(&self, grayscale: &[u8], width: u32, height: u32, path: &str) -> Result<(), String> {
+        let img_buffer = ImageBuffer::<Luma<u8>, Vec<u8>>::from_raw(width, height, grayscale.to_vec())
+            .ok_or("Failed to create image buffer")?;
+        
+        img_buffer.save(path)
+            .map_err(|e| format!("Failed to save PNG: {}", e))?;
+
+        Ok(())
     }
 }
