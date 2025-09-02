@@ -1,6 +1,6 @@
+use image::{ImageBuffer, Luma};
 use regex::Regex;
 use tesseract::Tesseract;
-use image::{ImageBuffer, Luma};
 
 /// Detected sensitive information with location
 #[derive(Debug, Clone)]
@@ -42,7 +42,11 @@ impl SensitiveDataDetector {
 
         let patterns = Self::build_patterns();
 
-        Ok(Self { tesseract, patterns, frame_count: 0 })
+        Ok(Self {
+            tesseract,
+            patterns,
+            frame_count: 0,
+        })
     }
 
     /// Build regex patterns for detecting sensitive data
@@ -65,7 +69,9 @@ impl SensitiveDataDetector {
         }
 
         // Phone numbers (various formats)
-        if let Ok(regex) = Regex::new(r"\b(?:\+?1[-.\s]?)?(?:\(?[0-9]{3}\)?[-.\s]?[0-9]{3}[-.\s]?[0-9]{4})\b") {
+        if let Ok(regex) =
+            Regex::new(r"\b(?:\+?1[-.\s]?)?(?:\(?[0-9]{3}\)?[-.\s]?[0-9]{3}[-.\s]?[0-9]{4})\b")
+        {
             patterns.push((SensitiveDataType::PhoneNumber, regex));
         }
 
@@ -75,7 +81,9 @@ impl SensitiveDataDetector {
         }
 
         // IP addresses
-        if let Ok(regex) = Regex::new(r"\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b") {
+        if let Ok(regex) = Regex::new(
+            r"\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b",
+        ) {
             patterns.push((SensitiveDataType::IpAddress, regex));
         }
 
@@ -93,11 +101,16 @@ impl SensitiveDataDetector {
     }
 
     /// Detect sensitive data in RGBA image buffer  
-    pub fn detect_sensitive_data(&mut self, rgba_buffer: &[u8], width: u32, height: u32) -> Vec<SensitiveMatch> {
+    pub fn detect_sensitive_data(
+        &mut self,
+        rgba_buffer: &[u8],
+        width: u32,
+        height: u32,
+    ) -> Vec<SensitiveMatch> {
         let mut matches = Vec::new();
-        
+
         self.frame_count += 1;
-        
+
         // Only run OCR every 60 frames (roughly once per second) to avoid performance issues
         if self.frame_count % 60 != 0 {
             return matches;
@@ -111,7 +124,10 @@ impl SensitiveDataDetector {
         // Save grayscale image temporarily for tesseract
         let temp_file = "cloak_share_ocr.png";
         match self.save_grayscale_as_png(&grayscale, width, height, temp_file) {
-            Ok(_) => println!("📷 Successfully saved frame to {} ({}x{})", temp_file, width, height),
+            Ok(_) => println!(
+                "📷 Successfully saved frame to {} ({}x{})",
+                temp_file, width, height
+            ),
             Err(e) => {
                 eprintln!("Failed to save image for OCR: {}", e);
                 return matches;
@@ -120,23 +136,19 @@ impl SensitiveDataDetector {
 
         // Extract text using tesseract
         let text = match Tesseract::new(None, Some("eng")) {
-            Ok(tess) => {
-                match tess.set_image(temp_file) {
-                    Ok(mut tess_with_image) => {
-                        match tess_with_image.get_text() {
-                            Ok(extracted_text) => extracted_text,
-                            Err(e) => {
-                                eprintln!("Failed to get text: {}", e);
-                                return matches;
-                            }
-                        }
-                    }
+            Ok(tess) => match tess.set_image(temp_file) {
+                Ok(mut tess_with_image) => match tess_with_image.get_text() {
+                    Ok(extracted_text) => extracted_text,
                     Err(e) => {
-                        eprintln!("Failed to set image: {}", e);
+                        eprintln!("Failed to get text: {}", e);
                         return matches;
                     }
+                },
+                Err(e) => {
+                    eprintln!("Failed to set image: {}", e);
+                    return matches;
                 }
-            }
+            },
             Err(e) => {
                 eprintln!("Failed to initialize tesseract: {}", e);
                 return matches;
@@ -150,7 +162,7 @@ impl SensitiveDataDetector {
         for (data_type, pattern) in &self.patterns {
             for regex_match in pattern.find_iter(&text) {
                 let sensitive_text = regex_match.as_str();
-                
+
                 matches.push(SensitiveMatch {
                     data_type: data_type.clone(),
                     text: sensitive_text.to_string(),
@@ -188,11 +200,19 @@ impl SensitiveDataDetector {
     }
 
     /// Save grayscale image as PNG for tesseract
-    fn save_grayscale_as_png(&self, grayscale: &[u8], width: u32, height: u32, path: &str) -> Result<(), String> {
-        let img_buffer = ImageBuffer::<Luma<u8>, Vec<u8>>::from_raw(width, height, grayscale.to_vec())
-            .ok_or("Failed to create image buffer")?;
-        
-        img_buffer.save(path)
+    fn save_grayscale_as_png(
+        &self,
+        grayscale: &[u8],
+        width: u32,
+        height: u32,
+        path: &str,
+    ) -> Result<(), String> {
+        let img_buffer =
+            ImageBuffer::<Luma<u8>, Vec<u8>>::from_raw(width, height, grayscale.to_vec())
+                .ok_or("Failed to create image buffer")?;
+
+        img_buffer
+            .save(path)
             .map_err(|e| format!("Failed to save PNG: {}", e))?;
 
         Ok(())

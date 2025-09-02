@@ -1,4 +1,7 @@
-use crate::{cross_platform_capture::CrossPlatformScreenCapture, gpu_renderer::GpuRenderer, sensitive_data_detector::SensitiveDataDetector};
+use crate::{
+    cross_platform_capture::CrossPlatformScreenCapture, gpu_renderer::GpuRenderer,
+    sensitive_data_detector::SensitiveDataDetector,
+};
 use std::sync::Arc;
 use winit::window::Window;
 
@@ -47,7 +50,10 @@ impl SafeMirror {
                 Some(detector)
             }
             Err(e) => {
-                eprintln!("Warning: Failed to initialize sensitive data detector: {}", e);
+                eprintln!(
+                    "Warning: Failed to initialize sensitive data detector: {}",
+                    e
+                );
                 None
             }
         };
@@ -75,15 +81,16 @@ impl SafeMirror {
 
         // Detect sensitive data in the frame
         if let Some(ref mut detector) = self.sensitive_detector {
-            let resolution = self.screen_capture.get_display_resolution().unwrap_or_else(|_| {
-                crate::platform::DisplayResolution { width: 1920, height: 1080 }
-            });
-            
-            let _matches = detector.detect_sensitive_data(
-                &texture_data, 
-                resolution.width, 
-                resolution.height
-            );
+            let resolution = self
+                .screen_capture
+                .get_display_resolution()
+                .unwrap_or_else(|_| crate::platform::DisplayResolution {
+                    width: 1920,
+                    height: 1080,
+                });
+
+            let _matches =
+                detector.detect_sensitive_data(&texture_data, resolution.width, resolution.height);
             // Note: _matches contains detected sensitive data for future redaction
         }
 
