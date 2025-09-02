@@ -1,4 +1,4 @@
-use crate::{cross_platform_capture::CrossPlatformScreenCapture, gpu_renderer::GpuRenderer};
+use crate::{cross_platform_capture::CrossPlatformScreenCapture, gpu_renderer::GpuRenderer, sensitive_data_detector::SensitiveDataDetector};
 use std::sync::Arc;
 use winit::window::Window;
 
@@ -10,6 +10,9 @@ pub struct SafeMirror {
 
     /// Cross-platform screen capture manager
     screen_capture: CrossPlatformScreenCapture,
+
+    /// Sensitive data detector
+    sensitive_detector: Option<SensitiveDataDetector>,
 }
 
 impl SafeMirror {
@@ -37,9 +40,22 @@ impl SafeMirror {
             eprintln!("Failed to start screen capture: {}", e);
         }
 
+        // Initialize sensitive data detector
+        let sensitive_detector = match SensitiveDataDetector::new() {
+            Ok(detector) => {
+                println!("🔍 Sensitive data detector initialized");
+                Some(detector)
+            }
+            Err(e) => {
+                eprintln!("Warning: Failed to initialize sensitive data detector: {}", e);
+                None
+            }
+        };
+
         Self {
             gpu_renderer,
             screen_capture,
+            sensitive_detector,
         }
     }
 
@@ -56,6 +72,20 @@ impl SafeMirror {
             .screen_capture
             .get_latest_frame()
             .unwrap_or_else(|| self.gpu_renderer.create_test_pattern());
+
+        // Detect sensitive data in the frame
+        if let Some(ref mut detector) = self.sensitive_detector {
+            let resolution = self.screen_capture.get_display_resolution().unwrap_or_else(|_| {
+                crate::platform::DisplayResolution { width: 1920, height: 1080 }
+            });
+            
+            let _matches = detector.detect_sensitive_data(
+                &texture_data, 
+                resolution.width, 
+                resolution.height
+            );
+            // Note: _matches contains detected sensitive data for future redaction
+        }
 
         // Update GPU texture and render
         self.gpu_renderer.update_texture(&texture_data);

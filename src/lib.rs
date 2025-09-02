@@ -5,3 +5,4 @@ pub mod platform;
 pub mod platform_detector;
 pub mod safe_mirror;
 pub mod screen_capture;
+pub mod sensitive_data_detector;

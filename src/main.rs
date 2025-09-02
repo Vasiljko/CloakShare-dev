@@ -4,6 +4,7 @@ mod pixel_conversion;
 mod platform;
 mod safe_mirror;
 mod screen_capture;
+mod sensitive_data_detector;
 
 use crate::safe_mirror::SafeMirror;
 use std::sync::Arc;
